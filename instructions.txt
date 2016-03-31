@@ -1,0 +1,38 @@
+<html>
+<h1>What is this?</h1>
+
+<p>
+This web app has been built to display the results of the Traces Through Time (TTT) record linker.
+</p>
+
+<p>
+The following section describes how it works:
+
+</p>
+
+<ul style="list-style-type:disc">
+   <li><h3>Selecting a linked dataset</h3></li>
+      <b>You can change the source data by select a linker result set from the drop down:</b>
+      <br>
+      <figure>
+         <img src="linker_ui_dropdown.JPG" alt="Select Results" width="300" height="50"
+      </figure>
+      <br>
+      <b>If you don't know which results to pick you can filter the list by partitioning method:</b>
+      <br>
+      <figure>
+         <img src="linker_ui_partitions.JPG" alt="Partitioning Methods" width="300" height="50"
+      </figure>
+      <br>
+      <b>And by linker method:</b>
+      <br>
+      <figure>
+         <img src="linker_ui_linkmethod.JPG" alt="Linker Methods" width="300" height="50"
+      </figure>      
+   <li><h3>Understanding the summary page</h3></li>
+   <li><h3>Differences tabs</h3></li>
+   <li><h3>Random sample tab</h3></li>
+</ul>
+</p>
+
+</html>
