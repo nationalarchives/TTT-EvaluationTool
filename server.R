@@ -1,30 +1,45 @@
-library(data.table)
-library(rmongodb)
-library(ggplot2)
-library(DT)
 
 #################
 # Change to FALSE before releasing
 # This will restrict the application to using smaller eval datasets only = quicker testing
-TESTING <- FALSE
+#TESTING <- TRUE
 #################
 
+# Load configuration parameters to a data table
+# Currently a ':' delimited file as only one entry
+application_config <<- fread('config.txt', sep="|", header=FALSE)
+setnames(application_config, names(application_config), c("Key", "Value"))
+
 # Initialise Mongo connection
-mongo = mongo.create(host='172.31.5.31')
+# mongolimit is max number of records to fetch from mongo
+# This greatly affects performance of fetches on data tabs. 15000 = 2.5s; 5000 = 0.7s;
+mongo_limit <- application_config[which(application_config$Key == 'mongolimit'),]$Value
+mongohost <- application_config[which(application_config$Key == 'mongohost'),]$Value
+mongo = mongo.create(host=mongohost)
 mongo.is.connected(mongo)
 mongo.get.databases(mongo)
+
+TESTING <- application_config[which(application_config$Key == 'testing'),]$Value == 'TRUE'
+
+if (TESTING) {
+  testcollections <- application_config[which(application_config$Key == 'testcollections'),]$Value
+  testcollections <- unlist(strsplit(testcollections, ";"))
+}
+
+datafolder <- application_config[which(application_config$Key == 'datafolder'),]$Value
 
 # Initialise variables
 A_file <<- data.table()   # container for original data file A
 B_file <<- data.table()   # container for original data file B
 links <<- data.table()    # container for links between A and B
+
 # List of columns shown on details tabs. Updated later by function:update_data_files
 # Changing these means changing references to them throughout the code, so DO NOT TOUCH
 display_columns_start <<- c("IAID_A","IAID_B","Score", "Confidence") 
 display_columns <<- display_columns_start
 source_tsv_column_names <- c("Forenames","Surnames","DOB","ServNum","BirthPlace")  # Column names which appear in the source tsv files must match this list.
-mongo_limit <- 10000  # This greatly affects performance of fetches on data tabs. 15000 = 2.5s; 5000 = 0.7s;
 
+# These variables should be renamed
 m_results <<- data.frame()
 current_results <<- data.frame()
 original_mongo_data <<- list()
@@ -55,37 +70,48 @@ gendiscolink <- function(iaid) {
 
 update_data_files <- function(a_file, b_file) {
   # Read the first file into container initialised above. Expects file to be tab delimited with a header row.
-  A_file <<- fread(paste0("data/", a_file, ".tsv"), sep="\t", header=T)
-  display_columns <<- display_columns_start
-  # Update header row to include indicator that this is source file A
-  setnames(A_file, c("TTTid", "IAID"), c("TTTid_A", "source_IAID_A"))
-  # Remove leading zeroes from the date of birth column if it is in the file
-  if ("DOB" %in% names(A_file)) {
-    A_file$DOB <<- mapply(rem_lead0, A_file$DOB)
-  }
-  # Add A to the column names so we know which source they refer to
-  for (col in source_tsv_column_names) {
-    if (col %in% names(A_file) & !(col %in% display_columns)) {
-      new_col <- paste0(col, "_A")
-      setnames(A_file, c(col), c(new_col))
-      display_columns <<- append(display_columns, new_col)
+  source_file_name_A <- paste0(datafolder, a_file, ".tsv")
+  if (file.exists(source_file_name_A)) {
+    A_file <<- fread(source_file_name_A, sep="\t", header=T)
+    display_columns <<- display_columns_start
+    # Update header row to include indicator that this is source file A
+    setnames(A_file, c("TTTid", "IAID"), c("TTTid_A", "source_IAID_A"))
+    # Remove leading zeroes from the date of birth column if it is in the file
+    if ("DOB" %in% names(A_file)) {
+      A_file$DOB <<- mapply(rem_lead0, A_file$DOB)
     }
+    # Add A to the column names so we know which source they refer to
+    for (col in source_tsv_column_names) {
+      if (col %in% names(A_file) & !(col %in% display_columns)) {
+        new_col <- paste0(col, "_A")
+        setnames(A_file, c(col), c(new_col))
+        display_columns <<- append(display_columns, new_col)
+      }
+    }
+    source_file_A_exists <<- TRUE
+  } else {
+    source_file_A_exists <<- FALSE
   }
   
   # Repeat the above steps for source file B - R is pass by value so creating a function to do both isn't easiest option
-  B_file <<- fread(paste0("data/", b_file, ".tsv"), sep="\t", header=T)
-  setnames(B_file, c("TTTid", "IAID"), c("TTTid_B", "source_IAID_B"))
-  if ("DOB" %in% names(B_file)) {
-    B_file$DOB <<- mapply(rem_lead0, B_file$DOB)
-  }
-  for (col in source_tsv_column_names) {
-    if (col %in% names(B_file) & !paste0(col, "_B") %in% display_columns) {
-      new_col <- paste0(col, "_B")
-      setnames(B_file, c(col), c(new_col))
-      display_columns <<- append(display_columns, new_col)
+  source_file_name_B <- paste0(datafolder, b_file, ".tsv")
+  if (file.exists(source_file_name_B)) {
+      B_file <<- fread(source_file_name_B, sep="\t", header=T)
+    setnames(B_file, c("TTTid", "IAID"), c("TTTid_B", "source_IAID_B"))
+    if ("DOB" %in% names(B_file)) {
+      B_file$DOB <<- mapply(rem_lead0, B_file$DOB)
     }
-  }  
-
+    for (col in source_tsv_column_names) {
+      if (col %in% names(B_file) & !paste0(col, "_B") %in% display_columns) {
+        new_col <- paste0(col, "_B")
+        setnames(B_file, c(col), c(new_col))
+        display_columns <<- append(display_columns, new_col)
+      }
+    } 
+    source_file_B_exists <<- TRUE
+  } else {
+    source_file_B_exists <<- FALSE
+  }
 
 }
 
@@ -373,7 +399,8 @@ server <- function(input, output, session) {
     # The filters aren't really used so will revisit when/if they become useful
     log_data <- all_log_data
     if (TESTING) {
-        log_data <- subset(log_data, source.name == "ADM339_Discovery_eval")
+        log_data <- subset(log_data, substr(source.name,1 ,6) %in% testcollections &
+                                     substr(target.name,1 ,6) %in% testcollections)
     }
     #list("Soundex" = 1, "Metaphone" = 2, "NYSIIS" = 3, "Jaro-Winkler" = 4)
     if ("1" %in% input$logPartitionGroup) {

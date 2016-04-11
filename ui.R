@@ -29,10 +29,6 @@ ui <- fluidPage(
                           max = 12,
                           value = 5.8,
                           step = 0.1))#,
-    #column(3, checkboxGroupInput("logPartitionGroup", label = h3("Filter by Partition Method"), 
-    #                             choices = list("Soundex" = 1, "Metaphone" = 2, "NYSIIS" = 3, "Jaro-Winkler" = 4), selected = NULL, inline=TRUE)),
-    #column(3, checkboxGroupInput("logLinkerGroup", label = h3("Filter by Linker Method"), 
-    #                             choices = list("Name" = 1, "DOB" = 2, "Service Number" = 3), selected = NULL, inline=TRUE))
   ),
   fluidRow(
     column(6, offset = 1,
@@ -46,7 +42,7 @@ ui <- fluidPage(
     column(4, sliderInput("records",
                           "Results Count:",
                           min = 10,
-                          max = 500,
+                          max = 5000,
                           value = 100,
                           step = 10))
   ) ,

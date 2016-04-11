@@ -1,0 +1,5 @@
+mongohost|172.31.5.31
+mongolimit|10000
+testcollections|ADM337;ADM339
+testing|FALSE
+datafolder|C:\Users\a-mbell\Documents\Source data\FromMongo\LinkerTSV\data\
