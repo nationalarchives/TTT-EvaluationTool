@@ -1,0 +1,8 @@
+# This is an example configuration file
+# Please complete the details after the pipe characters
+# Then rename the file to config.txt
+mongohost|
+mongolimit|
+testcollections|
+testing|FALSE
+datafolder|
