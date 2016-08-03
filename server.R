@@ -35,7 +35,7 @@ links <<- data.table()    # container for links between A and B
 
 # List of columns shown on details tabs. Updated later by function:update_data_files
 # Changing these means changing references to them throughout the code, so DO NOT TOUCH
-display_columns_start <<- c("IAID_A","IAID_B","Score", "Confidence") 
+display_columns_start <<- c("series_A", "IAID_A", "series_B", "IAID_B","Score", "Confidence") 
 display_columns <<- display_columns_start
 source_tsv_column_names <- c("Forenames","Surnames","DOB","ServNum","BirthPlace")  # Column names which appear in the source tsv files must match this list.
 
@@ -46,6 +46,29 @@ original_mongo_data <<- list()
 schema_name <<- "ttt."
 logging_table <<- paste0(schema_name, "logging")
 
+series_lookup <- data.frame(IAID = c("C16062", "C15126", "C14284", "C14543", "C2130", "C15486", "C1981"),
+                            name = c("ADM340", "ADM337", "WO76",   "WO339",  "AIR76", "ADM339", "ADM273"))
+
+series_lookup <- new.env()
+key <- "C16062"; value <- "ADM340"
+assign(key, value, series_lookup, inherits=FALSE)
+assign("C15126", "ADM337", series_lookup, inherits=FALSE)
+assign("C14284", "WO76", series_lookup, inherits=FALSE)
+assign("C14543", "WO339", series_lookup, inherits=FALSE)
+assign("C2130", "AIR76", series_lookup, inherits=FALSE)
+assign("C15486", "ADM339", series_lookup, inherits=FALSE)
+assign("C1981", "ADM273", series_lookup, inherits=FALSE)
+
+get_series <- function(iaid) {
+  series_name <- series_lookup[[iaid]]
+  if (is.null(series_name)) {
+    return(iaid)
+  } else {
+    return(series_name)
+  }
+}
+get_series("C16062")
+get_series("C16063")
 
 # Function to trim leading zeros from dates
 rem_lead0 <- function(date) {
@@ -65,6 +88,12 @@ confidenceCurve <- function(score, slope, centrePoint) {
 # Used for viewing original documents
 gendiscolink <- function(iaid) {
   sprintf("<a href='http://discovery.nationalarchives.gov.uk/details/r/%s' target='_blank'>%s</a>",iaid,iaid)
+}
+
+genseriesname <- function(TTTid) {
+  #series_id <- strsplit(strsplit(TTTid, "-")[[1]][2], "_")[[1]][1]
+  series_id <- get_series(strsplit(strsplit(TTTid, "-")[[1]][2], "_")[[1]][1])
+  return(series_id)
 }
 
 
@@ -112,6 +141,8 @@ update_data_files <- function(a_file, b_file) {
   } else {
     source_file_B_exists <<- FALSE
   }
+  #display_columns <<- append(display_columns, "series_A")
+  #display_columns <<- append(display_columns, "series_B")
 
 }
 
@@ -264,20 +295,20 @@ parselog <- function(logdata) {
     run_time <- as.character.Date(run_time)
     df <- rbind(df, data.frame(Parameter="Run Time", Value=run_time))
 
-    opt_alg_details <- logdata[[1]]$optimizer$optimiserConfiguration
-    opt <- paste(" ",opt_alg_details$indexing, " ", sep="")
-    opt_partitioner <- opt_alg_details$partitioningAndCandidateGeneratorCombinations
-    if (length(opt_partitioner) < 2) {
-      opt_alg <- opt_partitioner[[1]]$partitioningMethod
-    } else {
-      opt_alg <- paste(opt_partitioner[[1]]$partitioningMethod,
-                       opt_partitioner[[2]]$partitioningMethod, sep = opt)
-    }
-    df <- rbind(df, data.frame(Parameter="Optimiser", Value=opt_alg))
-
-    for (name in names(logdata[[1]]$linker$linkerConfiguration)) {
-      df <- rbind(df, data.frame(Parameter="Linker", Value=name))
-    }
+    # opt_alg_details <- logdata[[1]]$optimizer$optimiserConfiguration
+    # opt <- paste(" ",opt_alg_details$indexing, " ", sep="")
+    # opt_partitioner <- opt_alg_details$partitioningAndCandidateGeneratorCombinations
+    # if (length(opt_partitioner) < 2) {
+    #   opt_alg <- opt_partitioner[[1]]$partitioningMethod
+    # } else {
+    #   opt_alg <- paste(opt_partitioner[[1]]$partitioningMethod,
+    #                    opt_partitioner[[2]]$partitioningMethod, sep = opt)
+    # }
+    # df <- rbind(df, data.frame(Parameter="Optimiser", Value=opt_alg))
+    # 
+    # for (name in names(logdata[[1]]$linker$linkerConfiguration)) {
+    #   df <- rbind(df, data.frame(Parameter="Linker", Value=name))
+    # }
   }
 
   df
@@ -328,6 +359,8 @@ server <- function(input, output, session) {
                        y=A_file, by="TTTid_A",all.y=FALSE)
     m_results$IAID_A <<- gendiscolink(m_results$source_IAID_A)
     m_results$IAID_B <<- gendiscolink(m_results$source_IAID_B)
+    m_results$series_A <<- sapply(m_results$TTTid_A, FUN = genseriesname)
+    m_results$series_B <<- sapply(m_results$TTTid_B, FUN = genseriesname)
   })
   
   # Generates a summary plot by score
