@@ -141,8 +141,7 @@ update_data_files <- function(a_file, b_file) {
   } else {
     source_file_B_exists <<- FALSE
   }
-  #display_columns <<- append(display_columns, "series_A")
-  #display_columns <<- append(display_columns, "series_B")
+  display_columns_final <<- display_columns
 
 }
 
@@ -359,8 +358,13 @@ server <- function(input, output, session) {
                        y=A_file, by="TTTid_A",all.y=FALSE)
     m_results$IAID_A <<- gendiscolink(m_results$source_IAID_A)
     m_results$IAID_B <<- gendiscolink(m_results$source_IAID_B)
-    m_results$series_A <<- sapply(m_results$TTTid_A, FUN = genseriesname)
-    m_results$series_B <<- sapply(m_results$TTTid_B, FUN = genseriesname)
+    if (input$show_series) {
+        m_results$series_A <<- sapply(m_results$TTTid_A, FUN = genseriesname)
+        m_results$series_B <<- sapply(m_results$TTTid_B, FUN = genseriesname)
+        display_columns <<- display_columns_final
+    } else {
+      display_columns <<- display_columns_final[display_columns_final != "series_A" & display_columns_final != "series_B"]
+    }
   })
   
   # Generates a summary plot by score
@@ -506,6 +510,7 @@ server <- function(input, output, session) {
     sub_res <- subset(m_results, Score >= minscore & Score <= maxscore & tolower(Surnames_A) != tolower(Surnames_B))
     topn <- head(sub_res[with(sub_res, order(-Score)),],input$records)
     current_results <<- topn
+    print(display_columns)
     subset(topn, select = display_columns)
     #topn
     

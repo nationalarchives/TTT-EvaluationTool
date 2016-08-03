@@ -31,6 +31,8 @@ ui <- fluidPage(
                           step = 0.1))#,
   ),
   fluidRow(
+    column(1, checkboxInput("show_series",
+                            "Toggle Series")),
     column(6, offset = 1,
            sliderInput("range",
                        "Score Range:",
