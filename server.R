@@ -15,9 +15,13 @@ setnames(application_config, names(application_config), c("Key", "Value"))
 # This greatly affects performance of fetches on data tabs. 15000 = 2.5s; 5000 = 0.7s;
 mongo_limit <- application_config[which(application_config$Key == 'mongolimit'),]$Value
 mongohost <- application_config[which(application_config$Key == 'mongohost'),]$Value
+#mongo_limit <- 300000
 mongo = mongo.create(host=mongohost)
 mongo.is.connected(mongo)
 mongo.get.databases(mongo)
+print(mongo.get.database.collections(mongo, db = "ttt"))
+
+disco_prefix <<- "test."
 
 TESTING <- application_config[which(application_config$Key == 'testing'),]$Value == 'TRUE'
 
@@ -58,6 +62,16 @@ assign("C14543", "WO339", series_lookup, inherits=FALSE)
 assign("C2130", "AIR76", series_lookup, inherits=FALSE)
 assign("C15486", "ADM339", series_lookup, inherits=FALSE)
 assign("C1981", "ADM273", series_lookup, inherits=FALSE)
+assign("C1868", "ADM159", series_lookup, inherits = FALSE)
+assign("C1897", "ADM188", series_lookup, inherits = FALSE)
+assign("C1905", "ADM196", series_lookup, inherits = FALSE)
+assign("C14731480", "ADM362", series_lookup, inherits = FALSE)
+assign("C14731481", "ADM363", series_lookup, inherits = FALSE)
+assign("C9685", "J77", series_lookup, inherits = FALSE)
+assign("C15138", "ADM336", series_lookup, inherits = FALSE)
+assign("C15011", "AIR80", series_lookup, inherits = FALSE)
+assign("C2026", "ADM318", series_lookup, inherits = FALSE)
+assign("C15099", "WO398", series_lookup, inherits = FALSE)
 
 get_series <- function(iaid) {
   series_name <- series_lookup[[iaid]]
@@ -87,7 +101,7 @@ confidenceCurve <- function(score, slope, centrePoint) {
 # Create a link to Discovery details page
 # Used for viewing original documents
 gendiscolink <- function(iaid) {
-  sprintf("<a href='http://discovery.nationalarchives.gov.uk/details/r/%s' target='_blank'>%s</a>",iaid,iaid)
+  sprintf("<a href='http://%sdiscovery.nationalarchives.gov.uk/details/r/%s' target='_blank'>%s</a>", disco_prefix, iaid,iaid)
 }
 
 genseriesname <- function(TTTid) {
@@ -123,7 +137,7 @@ update_data_files <- function(a_file, b_file) {
   }
   
   # Repeat the above steps for source file B - R is pass by value so creating a function to do both isn't easiest option
-  source_file_name_B <- paste0(datafolder, b_file, ".tsv")
+  source_file_name_B <<- paste0(datafolder, b_file, ".tsv")
   if (file.exists(source_file_name_B)) {
       B_file <<- fread(source_file_name_B, sep="\t", header=T)
     setnames(B_file, c("TTTid", "IAID"), c("TTTid_B", "source_IAID_B"))
@@ -342,6 +356,12 @@ server <- function(input, output, session) {
     mongo.count(mongo, ns=paste0(schema_name, input$select))
   })
   
+  link_prefix <- reactive({
+    x <- input$disco_link_to
+    m_results$IAID_A <<- gendiscolink(m_results$source_IAID_A)
+    m_results$IAID_B <<- gendiscolink(m_results$source_IAID_B)
+  })
+  
   update_confidence <- reactive({
     print("Updating confidence")
     minscore <- input$range[1]  # Makes this component reactive to changes of score
@@ -353,6 +373,14 @@ server <- function(input, output, session) {
   # Creates the output data by merging links to source files
   data <- reactive({
     print("Called data")
+
+    if (input$disco_link_to == "test") { 
+      disco_prefix <<- "test."
+    } else {
+      disco_prefix <<- ""
+    }
+    print(paste0("Prefix:", disco_prefix))
+
     links <<- readlinks(paste0(schema_name,input$select), input$range[1], input$range[2])
     m_results <<- merge(x=merge(x=links,y=B_file,by="TTTid_B",all.y=FALSE),
                        y=A_file, by="TTTid_A",all.y=FALSE)
@@ -399,7 +427,24 @@ server <- function(input, output, session) {
     #  ])
   })
   
-
+  seriessumplot <- reactive({
+    if (length(input$select) == 0 || nchar(input$select) == 0) {
+      return()
+    }     
+    if (input$show_series) {
+      logging()
+      data()
+      if (nrow(m_results) == 0) {
+        return()
+      }
+      if (input$graph_type) {
+      ggplot(m_results, aes(x = series_A, fill = series_B)) + geom_bar(position = "fill", stat = "count")
+      } else {
+        ggplot(m_results, aes(x = series_A, fill = series_B)) + geom_bar(stat = "count")
+      }
+    }
+  })
+  
 
   # Shows total link count and number of links between score range
   # Used on front tab
@@ -422,6 +467,11 @@ server <- function(input, output, session) {
     x <- input$select
     sumplot()
   })
+  
+  output$seriesSummary <- renderPlot(({
+    x <- input$select
+    seriessumplot()
+  }))
   
   # Outputs the counts shown on the front tab
   output$link_count <- renderText({
@@ -469,6 +519,7 @@ server <- function(input, output, session) {
       #print(typeof(input$select_source))
       log_data <- subset(log_data, source.name %in% input$select_source | target.name %in% input$select_source)
     }
+    
 
     name_list <- as.vector(log_data$linker.linkerCollectionName)
     name_list <- sort(name_list, decreasing=TRUE)
@@ -543,7 +594,7 @@ server <- function(input, output, session) {
     logging()
     data()
     update_confidence()
-    sub_res <- subset(m_results, DOB_A != DOB_B)
+    sub_res <- subset(m_results, DOB_A != DOB_B & nchar(DOB_A) > 0 & nchar(DOB_B) > 0)
     topn <- head(sub_res[with(sub_res, order(-Score)),],input$records)
     current_results <<- topn
     subset(topn, select = display_columns)
@@ -585,7 +636,13 @@ server <- function(input, output, session) {
     
     topn <- m_results[sample(nrow(m_results),samp_size),]
     current_results <<- topn
-    subset(topn, select = display_columns)
+    if (input$has_dob) {
+    subset(topn, 
+           nchar(DOB_A) > 0 & nchar(DOB_B) > 0,
+           select = display_columns)
+    } else {
+      subset(topn, select = display_columns)
+    }
     
   }, server = FALSE, escape = FALSE)
   

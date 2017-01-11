@@ -31,8 +31,6 @@ ui <- fluidPage(
                           step = 0.1))#,
   ),
   fluidRow(
-    column(1, checkboxInput("show_series",
-                            "Toggle Series")),
     column(6, offset = 1,
            sliderInput("range",
                        "Score Range:",
@@ -48,12 +46,26 @@ ui <- fluidPage(
                           value = 100,
                           step = 10))
   ) ,
+  fluidRow(
+    column(1, checkboxInput("show_series",
+                            "Toggle Series")),
+    column(1, checkboxInput("graph_type",
+                            "Toggle Stacked")),
+    column(1, checkboxInput("has_dob",
+                            "Toggle Has Dob")),
+    column(1, radioButtons("disco_link_to",
+                           "Discovery",
+                           c("Live" = "live",
+                             "Test" = "test"),
+                           selected = "live"))
+  ),
 
 
     mainPanel(
       tabsetPanel(type = "tabs", 
                   tabPanel("Details", p(h3(textOutput("link_count"))), tableOutput("audittrail")),
                   tabPanel("Graph", plotOutput("summary")),
+                  tabPanel("Series Graph", plotOutput("seriesSummary", height = "700px")),
                   tabPanel("Different Surnames", DT::dataTableOutput("diffsurs"),verbatimTextOutput('diffsur_scores')),
                   tabPanel("Different Forenames", DT::dataTableOutput("difffores"), verbatimTextOutput('difffores_scores')),
                   tabPanel("Different Sample", DT::dataTableOutput("diffsample"), verbatimTextOutput('diffsample_scores')),
